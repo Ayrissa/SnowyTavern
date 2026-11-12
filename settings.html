@@ -1,0 +1,33 @@
+<div class="snowytavern-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>❄️ SnowyTavern</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <label class="checkbox_label" for="snowytavern_enabled">
+                <input id="snowytavern_enabled" type="checkbox" />
+                <span>Включить снег</span>
+            </label>
+
+            <label class="checkbox_label" for="snowytavern_festive">
+                <input id="snowytavern_festive" type="checkbox" />
+                <span>Праздничная тема оформления</span>
+            </label>
+
+            <div class="snowytavern-slider-row">
+                <label for="snowytavern_intensity">Интенсивность снегопада</label>
+                <input id="snowytavern_intensity" type="range" min="0" max="100" step="5" />
+                <span id="snowytavern_intensity_value">50%</span>
+            </div>
+
+            <div class="snowytavern-hint">
+                Наведи и потяни мышкой по снегу внизу экрана, чтобы его стряхнуть,
+                или зажми и тащи — снег соберётся в ком. Отпусти ком рядом с другим,
+                чтобы собрать снеговика.
+            </div>
+
+            <button id="snowytavern_clear" class="menu_button">Очистить снег</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,13 @@
+{
+  "display_name": "SnowyTavern",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "you",
+  "version": "1.0.0",
+  "homePage": "https://github.com/YOUR_USERNAME/SnowyTavern",
+  "auto_update": true,
+  "i18n": {}
+}
