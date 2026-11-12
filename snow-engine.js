@@ -103,12 +103,20 @@ export function createSnowEngine(options = {}) {
     }
 
     function spawnFlake() {
-        const r = 1.2 + Math.random() * 2.6;
+        // Roughly 1 in 3 flakes is a detailed 6-point star; the rest are soft
+        // round dots. Mixing the two keeps the sky readable (dots read as
+        // depth/distance) while stars give the "real snowflake" silhouette
+        // up close, without every flake costing a 6-branch draw call.
+        const isStar = Math.random() < 0.32;
+        const r = isStar ? 3.2 + Math.random() * 4.2 : 1.1 + Math.random() * 2.2;
         state.flakes.push({
             x: Math.random() * state.width,
             y: -10,
             r,
-            vy: 18 + Math.random() * 28 + r * 6,
+            shape: isStar ? 'star' : 'dot',
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 1.4,
+            vy: 18 + Math.random() * 28 + r * 5,
             vx: (Math.random() - 0.5) * 18,
             sway: Math.random() * Math.PI * 2,
             swaySpeed: 0.6 + Math.random() * 1.2,
@@ -131,6 +139,7 @@ export function createSnowEngine(options = {}) {
             const f = state.flakes[i];
             if (f.settled) continue;
             f.sway += f.swaySpeed * dt;
+            f.rotation += f.rotationSpeed * dt;
             f.x += (f.vx + Math.sin(f.sway) * 14) * dt;
             f.y += f.vy * dt;
 
@@ -210,11 +219,11 @@ export function createSnowEngine(options = {}) {
         // falling flakes
         ctx.save();
         for (const f of state.flakes) {
-            ctx.globalAlpha = f.opacity;
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-            ctx.fill();
+            if (f.shape === 'star') {
+                drawStarFlake(ctx, f);
+            } else {
+                drawDotFlake(ctx, f);
+            }
         }
         ctx.restore();
 
@@ -256,6 +265,51 @@ export function createSnowEngine(options = {}) {
         }
     }
 
+    function drawDotFlake(ctx, f) {
+        ctx.globalAlpha = f.opacity;
+        const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(1, 'rgba(255,255,255,0.15)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawStarFlake(ctx, f) {
+        // A simple 6-branch snowflake: each branch is a line with two short
+        // side-ticks near the tip, like the classic paper-cutout silhouette.
+        // Drawn with strokes only — cheap enough for a few dozen on screen.
+        ctx.save();
+        ctx.globalAlpha = f.opacity;
+        ctx.translate(f.x, f.y);
+        ctx.rotate(f.rotation);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(0.6, f.r * 0.16);
+        ctx.shadowColor = 'rgba(200,220,255,0.65)';
+        ctx.shadowBlur = f.r * 0.8;
+
+        for (let i = 0; i < 6; i++) {
+            ctx.rotate(Math.PI / 3);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -f.r);
+            ctx.stroke();
+
+            // two side ticks near the outer third, pointing back toward center
+            const tickY = -f.r * 0.62;
+            const tickLen = f.r * 0.34;
+            ctx.beginPath();
+            ctx.moveTo(0, tickY);
+            ctx.lineTo(-tickLen * 0.8, tickY - tickLen * 0.5);
+            ctx.moveTo(0, tickY);
+            ctx.lineTo(tickLen * 0.8, tickY - tickLen * 0.5);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     function drawBall(ctx, b) {
         ctx.save();
         const grad = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.1, b.x, b.y, b.r);
@@ -271,7 +325,119 @@ export function createSnowEngine(options = {}) {
         ctx.restore();
     }
 
+    const SCARF_COLORS = ['#c8102e', '#1b5e3a', '#2e5c9a', '#6b2e8f', '#e3a23c'];
+
+    function randomSnowmanAppearance() {
+        // Rolled once per snowman and cached on it, so the look stays stable
+        // across frames instead of re-rolling every draw call.
+        return {
+            hasHat: Math.random() < 0.65,
+            hatStyle: Math.random() < 0.5 ? 'top-hat' : 'bucket',
+            hasScarf: Math.random() < 0.75,
+            scarfColor: SCARF_COLORS[Math.floor(Math.random() * SCARF_COLORS.length)],
+            armAngle: 18 + Math.random() * 14, // degrees of upward tilt, mirrored L/R
+        };
+    }
+
+    function drawTwigArm(ctx, originX, originY, side, angleDeg) {
+        // side: -1 (left) or 1 (right). Draws a simple twig with 2 small
+        // branch forks, like a stick poked into the snowman's middle ball.
+        const len = 34;
+        const angle = (side === 1 ? -angleDeg : 180 + angleDeg) * (Math.PI / 180);
+        const endX = originX + Math.cos(angle) * len;
+        const endY = originY + Math.sin(angle) * len;
+
+        ctx.save();
+        ctx.strokeStyle = '#5a3d28';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 2.5;
+
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+
+        // two small forks near the tip
+        ctx.lineWidth = 1.6;
+        [0.75, 0.9].forEach((t, i) => {
+            const bx = originX + (endX - originX) * t;
+            const by = originY + (endY - originY) * t;
+            const forkAngle = angle + (i === 0 ? side * 0.6 : -side * 0.6);
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            ctx.lineTo(bx + Math.cos(forkAngle) * 10, by + Math.sin(forkAngle) * 10);
+            ctx.stroke();
+        });
+        ctx.restore();
+    }
+
+    function drawHat(ctx, x, headCY, headR, style) {
+        ctx.save();
+        ctx.fillStyle = '#2b2b2b';
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        const brimY = headCY - headR * 0.78;
+
+        if (style === 'top-hat') {
+            const crownW = headR * 0.85;
+            const crownH = headR * 1.05;
+            // brim
+            ctx.beginPath();
+            ctx.ellipse(x, brimY, headR * 0.95, headR * 0.18, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // crown
+            ctx.beginPath();
+            ctx.rect(x - crownW / 2, brimY - crownH, crownW, crownH);
+            ctx.fill();
+        } else {
+            // bucket hat: wide shallow cylinder, like an upturned pail
+            const bucketW = headR * 1.1;
+            const bucketH = headR * 0.6;
+            ctx.beginPath();
+            ctx.rect(x - bucketW / 2, brimY - bucketH, bucketW, bucketH);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x, brimY - bucketH, bucketW / 2, headR * 0.14, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function drawScarf(ctx, x, midCY, midR, headR, color) {
+        ctx.save();
+        const scarfY = midCY - midR * 0.92;
+        ctx.fillStyle = color;
+
+        // band around the neck
+        ctx.beginPath();
+        ctx.ellipse(x, scarfY, headR * 0.78, headR * 0.22, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // hanging tail, slightly to one side
+        ctx.beginPath();
+        ctx.moveTo(x + headR * 0.25, scarfY);
+        ctx.lineTo(x + headR * 0.55, scarfY + headR * 1.3);
+        ctx.lineTo(x + headR * 0.2, scarfY + headR * 1.3);
+        ctx.closePath();
+        ctx.fill();
+
+        // a couple of fringe lines at the tail tip
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 3; i++) {
+            const fx = x + headR * 0.28 + i * headR * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(fx, scarfY + headR * 1.3);
+            ctx.lineTo(fx, scarfY + headR * 1.42);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     function drawSnowman(ctx, sm) {
+        if (!sm.appearance) sm.appearance = randomSnowmanAppearance();
+        const look = sm.appearance;
+
         ctx.save();
         const { x, baseY, baseR } = sm;
         const midR = baseR * 0.72;
@@ -281,6 +447,10 @@ export function createSnowEngine(options = {}) {
         const headCY = midCY - midR - headR * 0.85;
         sm.topY = headCY - headR;
         sm.topR = headR;
+
+        // twig arms, drawn behind the body balls so they poke out from the middle
+        drawTwigArm(ctx, x - midR * 0.85, midCY, -1, look.armAngle);
+        drawTwigArm(ctx, x + midR * 0.85, midCY, 1, look.armAngle);
 
         [[baseCY, baseR], [midCY, midR], [headCY, headR]].forEach(([cy, r]) => {
             const grad = ctx.createRadialGradient(x - r * 0.3, cy - r * 0.3, r * 0.1, x, cy, r);
@@ -317,6 +487,14 @@ export function createSnowEngine(options = {}) {
             ctx.arc(x, midCY - midR * 0.4 + i * midR * 0.4, midR * 0.07, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        if (look.hasScarf) {
+            drawScarf(ctx, x, midCY, midR, headR, look.scarfColor);
+        }
+        if (look.hasHat) {
+            drawHat(ctx, x, headCY, headR, look.hatStyle);
+        }
+
         ctx.restore();
     }
 

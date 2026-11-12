@@ -1,6 +1,7 @@
 /* SnowyTavern — panel styles */
 
-.snowytavern-settings .snowytavern-slider-row {
+.snowytavern-settings .snowytavern-slider-row,
+.snowytavern-settings .snowytavern-select-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -8,6 +9,10 @@
 }
 
 .snowytavern-settings .snowytavern-slider-row input[type="range"] {
+    flex: 1;
+}
+
+.snowytavern-settings .snowytavern-select-row select {
     flex: 1;
 }
 
@@ -24,48 +29,52 @@
     touch-action: none;
 }
 
-/* ---------------------------------------------------------------- */
-/* Festive theme — purely visual accents, independent from the snow. */
-/* Toggled via body.snowytavern-festive                               */
-/* ---------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/* Themes — purely visual CSS overlays, independent from the snow      */
+/* effect itself. Each theme is a body class toggled by themes.js.     */
+/* To add a new theme: add an entry to THEMES in themes.js, then add   */
+/* a `body.snowytavern-theme-<id> { ... }` block here.                 */
+/* ------------------------------------------------------------------ */
 
-body.snowytavern-festive {
+/* --- Theme: classic (🎄 Зима / Classic) --- */
+
+body.snowytavern-theme-classic {
     --snowy-accent: #c8102e;
     --snowy-accent-2: #1b5e3a;
     --snowy-gold: #e3c26b;
 }
 
-body.snowytavern-festive #top-bar,
-body.snowytavern-festive #top-settings-holder {
+body.snowytavern-theme-classic #top-bar,
+body.snowytavern-theme-classic #top-settings-holder {
     border-bottom: 2px solid var(--snowy-gold) !important;
 }
 
-body.snowytavern-festive .drawer-icon,
-body.snowytavern-festive .menu_button {
+body.snowytavern-theme-classic .drawer-icon,
+body.snowytavern-theme-classic .menu_button {
     transition: filter 0.2s ease;
 }
 
-body.snowytavern-festive .menu_button:hover {
+body.snowytavern-theme-classic .menu_button:hover {
     filter: drop-shadow(0 0 4px var(--snowy-gold));
 }
 
-body.snowytavern-festive #send_but,
-body.snowytavern-festive #send_but:hover {
+body.snowytavern-theme-classic #send_but,
+body.snowytavern-theme-classic #send_but:hover {
     color: var(--snowy-accent-2) !important;
 }
 
-body.snowytavern-festive .mes_block {
+body.snowytavern-theme-classic .mes_block {
     border-left: 2px solid transparent;
 }
 
-body.snowytavern-festive .mes.last_mes .mes_block {
+body.snowytavern-theme-classic .mes.last_mes .mes_block {
     border-left-color: var(--snowy-accent);
 }
 
-body.snowytavern-festive ::-webkit-scrollbar-thumb {
+body.snowytavern-theme-classic ::-webkit-scrollbar-thumb {
     background: linear-gradient(var(--snowy-accent-2), var(--snowy-accent));
 }
 
-body.snowytavern-festive .inline-drawer-header b {
+body.snowytavern-theme-classic .inline-drawer-header b {
     text-shadow: 0 0 4px rgba(227, 194, 107, 0.35);
 }
