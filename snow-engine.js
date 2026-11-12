@@ -48,7 +48,7 @@ export function createSnowEngine(options = {}) {
             width: '100vw',
             height: '100vh',
             zIndex: '9999',
-            pointerEvents: 'none',
+            pointerEvents: 'none', // canvas never intercepts clicks itself; see pointer handlers below
         });
         document.body.appendChild(canvas);
         state.canvas = canvas;
@@ -57,12 +57,14 @@ export function createSnowEngine(options = {}) {
         resize();
         window.addEventListener('resize', resize);
 
-        // Pointer events are handled on a transparent hit-layer the size of the viewport,
-        // but we only react when the pointer is near the accumulated snow / a snowball.
-        canvas.style.pointerEvents = 'auto';
-        canvas.addEventListener('pointerdown', onPointerDown);
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
+        // The canvas stays pointer-events:none by default so it never blocks clicks
+        // on the UI underneath. We listen on `window` (capture phase) instead, and
+        // only ever call preventDefault()/stopPropagation() when the pointer is
+        // actually over settled snow or a snowball — everywhere else the event
+        // passes through untouched to the real UI.
+        window.addEventListener('pointerdown', onPointerDown, true);
+        window.addEventListener('pointermove', onPointerMove, true);
+        window.addEventListener('pointerup', onPointerUp, true);
 
         state.maxFlakes = maxFlakesForIntensity();
     }
@@ -333,9 +335,38 @@ export function createSnowEngine(options = {}) {
 
     // --- interaction ---
 
+    function hitTest(x, y) {
+        // Returns true only when (x, y) is actually over something interactive:
+        // an existing ball, a snowman's body, or a settled snow pile deep enough
+        // to grab. Used to decide whether we intercept the event at all.
+        if (state.ball && Math.hypot(x - state.ball.x, y - state.ball.y) < state.ball.r + 10) {
+            return true;
+        }
+        for (const sm of state.snowmen) {
+            if (Math.hypot(x - sm.x, y - (sm.baseY - sm.baseR)) < sm.baseR * 2.2) {
+                return true;
+            }
+        }
+        const groundY = groundYAt(x);
+        if (y >= groundY - 30 && y <= state.height && (state.heightMap[colIndexAt(x)] || 0) > 4) {
+            return true;
+        }
+        return false;
+    }
+
     function onPointerDown(e) {
         const x = e.clientX;
         const y = e.clientY;
+
+        if (!hitTest(x, y)) {
+            // Nothing interactive here — let the event through to the real UI untouched.
+            state.mouse.down = false;
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
         const groundY = groundYAt(x);
 
         // if clicking an existing small ball, pick it up; otherwise start rolling a new one
@@ -357,6 +388,19 @@ export function createSnowEngine(options = {}) {
         const y = e.clientY;
         state.mouse.x = x;
         state.mouse.y = y;
+
+        // Only intercept move events while an interaction we already started
+        // (mouse down over snow/a ball) is in progress. Otherwise let the
+        // event pass through untouched — this is what lets normal hover/drag
+        // on the real UI keep working everywhere else on the page.
+        if (!state.mouse.down) {
+            state.mouse.lastX = x;
+            state.mouse.lastY = y;
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
 
         const dx = x - state.mouse.lastX;
         const dy = y - state.mouse.lastY;
@@ -435,9 +479,20 @@ export function createSnowEngine(options = {}) {
     }
 
     function onPointerUp(e) {
+        const wasInteracting = state.mouse.down;
+        state.mouse.down = false;
+
+        if (!wasInteracting) {
+            // We never claimed the corresponding pointerdown, so don't
+            // swallow this event either — let the UI handle it normally.
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
         const x = e.clientX;
         const y = e.clientY;
-        state.mouse.down = false;
 
         if (state.ball && state.ball.rolling) {
             const sm = findNearestSnowman(x, y, 70);
@@ -492,10 +547,10 @@ export function createSnowEngine(options = {}) {
         state.running = false;
         if (state.rafId) cancelAnimationFrame(state.rafId);
         window.removeEventListener('resize', resize);
+        window.removeEventListener('pointerdown', onPointerDown, true);
+        window.removeEventListener('pointermove', onPointerMove, true);
+        window.removeEventListener('pointerup', onPointerUp, true);
         if (state.canvas) {
-            state.canvas.removeEventListener('pointerdown', onPointerDown);
-            window.removeEventListener('pointermove', onPointerMove);
-            window.removeEventListener('pointerup', onPointerUp);
             state.canvas.remove();
         }
         state.canvas = null;
